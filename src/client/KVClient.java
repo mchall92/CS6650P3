@@ -14,13 +14,12 @@ import java.util.concurrent.Executors;
 public class KVClient {
 
     private static ExecutorService executorService;
-    private static ClientLogger clientLogger = new ClientLogger("Client");
+    private static ClientLogger clientLogger = new ClientLogger("KVClient");
     private static Registry[] registryList = new Registry[5];
     private static KVInterface[] kvstubList = new KVInterface[5];
     private static int[] portList = new int[5];
 
     public static void main(String[] args) throws Exception {
-        ClientLogger clientLogger = new ClientLogger("KVClient");
 
         if (args.length != 6) {
             clientLogger.error("Incorrect argument, please provide 1 host address along " +
@@ -37,7 +36,7 @@ public class KVClient {
                 return;
             }
             registryList[i - 1] =  LocateRegistry.getRegistry(host, portList[i - 1]);
-            kvstubList[i - 1] = (KVInterface) registryList[i - 1].lookup("KV");
+            kvstubList[i - 1] = (KVInterface) registryList[i - 1].lookup("utils.KVInterface");
         }
 
         executorService = Executors.newFixedThreadPool(20);
