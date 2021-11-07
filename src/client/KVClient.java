@@ -73,7 +73,7 @@ public class KVClient {
 
     private static String sendPutRequest(KVInterface kvstub, String key, String value) {
         Timestamp timestamp = new Timestamp(System.currentTimeMillis());
-        clientLogger.debug("Sent request- PUT " + key + " with Value: " + value + "   " + timestamp);
+        clientLogger.debug("Sending request- PUT " + key + " with Value: " + value + "   " + timestamp);
         try {
             timestamp = new Timestamp(System.currentTimeMillis());
             return kvstub.PUT(UUID.randomUUID(), key, value) + "   " + timestamp;
@@ -85,7 +85,7 @@ public class KVClient {
 
     private static String sendGetRequest(KVInterface kvstub, String key) {
         Timestamp timestamp = new Timestamp(System.currentTimeMillis());
-        clientLogger.debug("Sent request- GET key: " + key + "   " + timestamp);
+        clientLogger.debug("Sending request- GET key: " + key + "   " + timestamp);
         try {
             timestamp = new Timestamp(System.currentTimeMillis());
             return kvstub.GET(UUID.randomUUID(), key) + "   " + timestamp;
@@ -97,7 +97,7 @@ public class KVClient {
 
     private static String sendDeleteRequest(KVInterface kvstub, String key) {
         Timestamp timestamp = new Timestamp(System.currentTimeMillis());
-        clientLogger.debug("Sent request- DELETE key: " + key + "   " + timestamp);
+        clientLogger.debug("Sending request- DELETE key: " + key + "   " + timestamp);
         try {
             timestamp = new Timestamp(System.currentTimeMillis());
             return kvstub.DELETE(UUID.randomUUID(), key) + "   " + timestamp;
