@@ -45,7 +45,8 @@ public class KVCoordinator {
                 serverLogger.debug("Server " + i + " is listening at port " + portNumberList[i] + " ...");
             }
         } catch (RemoteException e) {
-            serverLogger.error("Error creating servants. " + e.getMessage());
+            serverLogger.error("Error creating servants.");
+            serverLogger.error(e.getMessage());
         }
     }
 

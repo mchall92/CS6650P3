@@ -31,39 +31,60 @@ public class KVServant extends Thread implements KVInterface {
 
     @Override
     public String PUT(UUID operationId, String key, String value) throws RemoteException {
+        serverLogger.debug("Servant port " + this.currPort +
+                " : Received request - PUT (key/Value) - " + "(" + key +
+                "/" + value + ")" + " from client " + getClient());
+
         if (!startToPrepare(operationId, "PUT", key, value)) {
             return "Servant port " + this.currPort + " | operation ID " + operationId +
                     " : Failed to PUT (key/value) - " + key + " / " + value;
         }
 
+        if (!startToGo(operationId)) {
+            return "Servant port " + this.currPort + " | operation ID " + operationId +
+                    " : Failed to PUT (key/value) - " + key + " / " + value;
+        }
 
-        return null;
+        if (!this.tempOperationMap.containsKey(operationId)) {
+            serverLogger.error("Servant port " + this.currPort + " : temp operation" +
+                    "map does not contain operation ID. Something was wrong.");
+        }
+
+        Operation op = this.tempOperationMap.get(operationId);
+        try {
+            readWriteLock.lockWrite();
+            this.keyValue.put(op.key, op.value);
+            readWriteLock.unlockWrite();
+        } catch (InterruptedException e) {
+            serverLogger.error("Servant port " + this.currPort + " : Lock write error for PUT");
+            e.printStackTrace();
+        }
+
+        this.tempOperationMap.remove(operationId);
+
+        serverLogger.debug("Servant port " + this.currPort + " | operation ID " + operationId +
+                " : PUT request SUCCESS. PUT (Key / Value) : (" + key + " / " + value + ")");
+        return "PUT request SUCCESS. PUT (Key / Value) : (" + key + " / " + value + ")";
     }
 
     @Override
     public String GET(UUID operationId, String key) throws RemoteException {
         String message = "";
-        String client = "";
-        try {
-            client = RemoteServer.getClientHost();
-        } catch (ServerNotActiveException e) {
-            serverLogger.error("Error getting client info.");
-            serverLogger.error(e.getMessage());
-        }
 
-        serverLogger.debug("Received request- GET key: " + key + " from client " + client);
+        serverLogger.debug("Servant port " + this.currPort +
+                " : Received request- GET key: " + key + " from client " + getClient());
         try {
             readWriteLock.lockRead();
             String value = "";
             if (keyValue.containsKey(key)) {
                 value = keyValue.get(key);
                 serverLogger.debug("GET request SUCCESS. GET (Key / Value) -> (" +
-                        key + " : " + value + ") for Client: " + client);
+                        key + " : " + value + ") for Client: " + getClient());
                 message =  "GET request SUCCESS. GET (Key / Value) -> (" +
                         key + " : " + value + ")";
             } else {
                 serverLogger.debug("GET request cannot find Key " +
-                        key + " for Client: " + client);
+                        key + " for Client: " + getClient());
                 message =  "GET request cannot find Key " + key;
             }
             readWriteLock.unlockRead();
@@ -76,13 +97,41 @@ public class KVServant extends Thread implements KVInterface {
 
     @Override
     public String DELETE(UUID operationId, String key) throws RemoteException {
-        if (startToPrepare(operationId, "DELETE", key, "")) {
+        serverLogger.debug("Servant port " + this.currPort +
+                " : Received request - DELETE key - " + key + " from client " + getClient());
 
-        } else {
-
+        if (!startToPrepare(operationId, "DELETE", key, "")) {
+            return "Servant port " + this.currPort + " | operation ID " + operationId +
+                    " : Failed to DELETE (key) - " + key;
         }
 
-        return null;
+        if (!startToGo(operationId)) {
+            return "Servant port " + this.currPort + " | operation ID " + operationId +
+                    " : Failed to DELETE (key) - " + key;
+        }
+
+        if (!this.tempOperationMap.containsKey(operationId)) {
+            serverLogger.error("Servant port " + this.currPort + " | operation ID "
+                    + operationId + " : temp operation" +
+                    "map does not contain operation ID. Something was wrong.");
+        }
+
+        Operation op = this.tempOperationMap.get(operationId);
+
+        try {
+            readWriteLock.lockWrite();
+            this.keyValue.delete(op.key);
+            readWriteLock.unlockWrite();
+        } catch (InterruptedException e) {
+            serverLogger.error("Servant port " + this.currPort + " : Lock write error for DELETE");
+            e.printStackTrace();
+        }
+
+        this.tempOperationMap.remove(operationId);
+
+        serverLogger.debug("Servant port " + this.currPort + " | operation ID " +
+                        operationId + " : DELETE request SUCCESS. DELETE Key: " + key);
+        return "DELETE request SUCCESS. DELETE key: " + key;
     }
 
     @Override
@@ -98,6 +147,26 @@ public class KVServant extends Thread implements KVInterface {
         }
         addToTempOperationMap(operationId, action, key, value);
         sendACKState(operationId, originalServant, ACKState.Prepare);
+    }
+
+    @Override
+    public void goKeyValue(UUID operationId, int originalServant) throws RemoteException {
+        if (!this.tempOperationMap.containsKey(operationId)) {
+            serverLogger.error("Servant port " + this.currPort + " : Should not commit Go " +
+                    "without Prepare. Something was wrong.");
+        }
+
+        Operation op = this.tempOperationMap.get(operationId);
+        if (op.action.equalsIgnoreCase("PUT")) {
+            this.keyValue.put(op.key, op.value);
+        } else if (op.action.equalsIgnoreCase("DELETE")) {
+            this.keyValue.delete(op.key);
+        } else {
+            serverLogger.error("Servant port " + this.currPort + " : Operation action is " +
+                    "invalid. Something was wrong.");
+        }
+        this.tempOperationMap.remove(operationId);
+        this.sendACKState(operationId, originalServant, ACKState.Go);
     }
 
     private boolean startToPrepare(UUID operationId, String action, String key, String value){
@@ -123,7 +192,9 @@ public class KVServant extends Thread implements KVInterface {
 
     private void prepareOtherServants(UUID operationId, String action,
                                       String key, String value, int otherServant) {
-        serverLogger.debug("Sending query to prepare other servants for UUID: " + operationId);
+        serverLogger.debug("Servant port " + this.currPort +
+                " : Sending query to prepare at other servant port - " + otherServant +
+                " | Operation Id - " + operationId);
         try {
             Acknowledge acknowledge = new Acknowledge();
             acknowledge.isAcknowledged = false;
@@ -138,33 +209,90 @@ public class KVServant extends Thread implements KVInterface {
     }
 
     private boolean waitForPrepare(UUID operationId, String action, String key, String value) {
-        int acknowledgedCount = 0;
-        int tryCount = 5;
+        int acknowledgedPrepareCount = 0;
+        int tryPrepareCount = 5;
 
-        while (tryCount > 0) {
+        while (tryPrepareCount > 0) {
             try {
                 Thread.sleep(120);
             } catch (InterruptedException e) {
                 serverLogger.error("Servant port " + this.currPort + " : Thread sleep for Prepare error.");
             }
-            acknowledgedCount = 0;
+            acknowledgedPrepareCount = 0;
 
             Map<Integer, Acknowledge> acknowledgeMap = this.pendingPrepare.get(operationId);
             for (int otherServant : this.otherServantPorts) {
                 if (acknowledgeMap.get(otherServant).isAcknowledged) {
-                    acknowledgedCount += 1;
+                    acknowledgedPrepareCount += 1;
                 } else {
                     prepareOtherServants(operationId, action, key, value, otherServant);
                 }
             }
 
-            if (acknowledgedCount == 4) {
+            if (acknowledgedPrepareCount == 4) {
                 return true;
             }
 
-            tryCount -= 1;
+            tryPrepareCount -= 1;
         }
         return false;
+    }
+
+    private boolean waitForGo(UUID operationId) {
+        int acknowledgedGoCount = 0;
+        int tryGoCount = 5;
+
+        while (tryGoCount > 0) {
+            try {
+                Thread.sleep(120);
+            } catch (InterruptedException e) {
+                serverLogger.error("Servant port " + this.currPort + " : Thread sleep for Go error.");
+            }
+            acknowledgedGoCount = 0;
+
+            Map<Integer, Acknowledge> acknowledgeMap = this.pendingGo.get(operationId);
+            for (int otherServant : this.otherServantPorts) {
+                if (acknowledgeMap.get(otherServant).isAcknowledged) {
+                    acknowledgedGoCount += 1;
+                } else {
+                    goOtherServants(operationId, otherServant);
+                }
+            }
+
+            if (acknowledgedGoCount == 4) {
+                return true;
+            }
+
+            tryGoCount -= 1;
+        }
+        return false;
+    }
+
+    private boolean startToGo(UUID operationId) {
+        this.pendingGo.put(operationId, Collections.synchronizedMap(new HashMap<>()));
+
+        for (int otherServant : this.otherServantPorts) {
+            goOtherServants(operationId, otherServant);
+        }
+
+        return waitForGo(operationId);
+    }
+
+    private void goOtherServants(UUID operationId, int otherServant) {
+        serverLogger.debug("Servant port " + this.currPort +
+                " : Sending query to commit Go at other servant port - " + otherServant +
+                " | Operation Id - " + operationId);
+        try {
+            Acknowledge acknowledge = new Acknowledge();
+            acknowledge.isAcknowledged = false;
+            this.pendingGo.get(operationId).put(otherServant, acknowledge);
+            Registry registry = LocateRegistry.getRegistry(otherServant);
+            KVInterface kvStub = (KVInterface) registry.lookup("utils.KVInterface");
+            kvStub.goKeyValue(operationId, this.currPort);
+        } catch (NotBoundException | RemoteException e) {
+            serverLogger.error("Error sending query to commit Go at other servants.");
+            serverLogger.error(e.getMessage());
+        }
     }
 
     private void sendACKState(UUID operationId, int originalServant, ACKState ackState) {
@@ -190,6 +318,17 @@ public class KVServant extends Thread implements KVInterface {
         }
         serverLogger.debug("Servant port " + this.currPort + " : Received ACKState- " +
                 ackState + " from other servant port " + otherServant);
+    }
+
+    private String getClient() {
+        String client = "";
+        try {
+            client = RemoteServer.getClientHost();
+        } catch (ServerNotActiveException e) {
+            serverLogger.error("Error getting client info.");
+            serverLogger.error(e.getMessage());
+        }
+        return client;
     }
 
     private class Operation {

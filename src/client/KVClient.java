@@ -5,7 +5,6 @@ import utils.KVInterface;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
-import java.rmi.server.ServerNotActiveException;
 import java.sql.Timestamp;
 import java.util.Scanner;
 import java.util.UUID;
@@ -166,6 +165,10 @@ public class KVClient {
 
             String[] operation = op.split("\\s+");
 
+            if (operation.length == 1 && operation[0].equalsIgnoreCase("close")) {
+                System.exit(0);
+            }
+
             // check if first argument is a number between 0 and 4 to indicate which port,
             // if not, prompt user to input again
             int firstNumber = -1;
@@ -194,8 +197,6 @@ public class KVClient {
                 } else {
                     errorOp();
                 }
-            } else if (operation[0].equalsIgnoreCase("CLOSE")) {
-                System.exit(0);
             } else {
                 errorOp();
             }
