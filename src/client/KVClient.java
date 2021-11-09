@@ -8,12 +8,9 @@ import java.rmi.registry.Registry;
 import java.sql.Timestamp;
 import java.util.Scanner;
 import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 public class KVClient {
 
-    private static ExecutorService executorService;
     private static ClientLogger clientLogger = new ClientLogger("KVClient");
     private static Registry[] registryList = new Registry[5];
     private static KVInterface[] kvstubList = new KVInterface[5];
@@ -26,6 +23,7 @@ public class KVClient {
                     "with 5 port numbers");
             return;
         }
+
         String host = args[0];
 
         for (int i = 1; i < args.length; i += 1) {
@@ -39,7 +37,6 @@ public class KVClient {
             kvstubList[i - 1] = (KVInterface) registryList[i - 1].lookup("utils.KVInterface");
         }
 
-        executorService = Executors.newFixedThreadPool(20);
         try {
 
             runHardCodedCommand();
@@ -54,17 +51,11 @@ public class KVClient {
 
     private static void execute(KVInterface kvstub, String[] request) {
         if (request[1].equalsIgnoreCase("put")) {
-            executorService.execute(() -> {
-                clientLogger.debug(sendPutRequest(kvstub, request[2], request[3]));
-            });
+            clientLogger.debug(sendPutRequest(kvstub, request[2], request[3]));
         } else if (request[1].equalsIgnoreCase("get")) {
-            executorService.execute(() -> {
-                clientLogger.debug(sendGetRequest(kvstub, request[2]));
-            });
+            clientLogger.debug(sendGetRequest(kvstub, request[2]));
         } else if (request[1].equalsIgnoreCase("delete")) {
-            executorService.execute(() -> {
-                clientLogger.debug(sendDeleteRequest(kvstub, request[2]));
-            });
+            clientLogger.debug(sendDeleteRequest(kvstub, request[2]));
         } else {
             clientLogger.error("Incorrect request command and should not reach here!");
         }

@@ -9,65 +9,50 @@ import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
 
 public class KVCoordinator {
-    private static int[] portNumberList = new int[5];
-    private static KVServant[] servantList = new KVServant[5];
+
     private static ServerLogger serverLogger = new ServerLogger("KVCoordinator");
 
     public static void main(String[] args) {
-
-
-
-        if (args.length != 5) {
-            serverLogger.error("Please enter 5 port numbers");
+        if (args.length != 1) {
+            serverLogger.error("Please enter one port number for coordinator.");
         }
 
         // parse port number
+        int coordinatorPortNumber = -1;
         try {
-            for (int i = 0; i < portNumberList.length; i += 1) {
-                portNumberList[i] = Integer.parseInt(args[i]);
-            }
+            coordinatorPortNumber = Integer.parseInt(args[0]);
         } catch (NumberFormatException e) {
-            serverLogger.error("Invalid port number format");
+            serverLogger.error("Invalid port number format.");
         }
 
-        // initiate 5 servants with port numbers
         try {
-            for (int i = 0; i < portNumberList.length; i += 1) {
-                servantList[i] = new KVServant();
-                // **************** port number = 0 ????????
-                KVInterface kvStub = (KVInterface) UnicastRemoteObject.exportObject(servantList[i], portNumberList[i]);
-                Registry registry = LocateRegistry.createRegistry(portNumberList[i]);
-                registry.rebind("utils.KVInterface", kvStub);
+            KVServant kvCoordinator = new KVServant();
+            KVInterface kvStub = (KVInterface) UnicastRemoteObject.exportObject(kvCoordinator, coordinatorPortNumber);
+            Registry registry = LocateRegistry.createRegistry(coordinatorPortNumber);
+            registry.rebind("utils.KVInterface", kvStub);
 
-                // set up all other port numbers for current servant
-                setUpOtherPorts(portNumberList[i]);
-
-                serverLogger.debug("Server " + i + " is listening at port " + portNumberList[i] + " ...");
-            }
+            serverLogger.debug("KVCoordinator is listening at port " + coordinatorPortNumber + " ...");
         } catch (RemoteException e) {
-            serverLogger.error("Error creating servants.");
+            serverLogger.error("Error creating coordinator.");
             serverLogger.error(e.getMessage());
+            e.printStackTrace();
         }
+
+        // set up coordinator port number
+        setUpCoordinator(coordinatorPortNumber);
     }
 
-    private static void setUpOtherPorts(int currPort) {
+    public static void setUpCoordinator(int coordinatorPortNumber) {
         try {
-            Registry registry =  LocateRegistry.getRegistry(currPort);
-            KVInterface kvStub = (KVInterface) registry.lookup("utils.KVInterface");
 
-            int i = 0;
-            int[] otherServantPorts = new int[portNumberList.length - 1];
-            for (int portNumber : portNumberList) {
-                if (currPort != portNumber) {
-                    otherServantPorts[i] = portNumber;
-                    i += 1;
-                }
-            }
+            Registry registry =  LocateRegistry.getRegistry(coordinatorPortNumber);
+            KVInterface kvStubCoordinator = (KVInterface) registry.lookup("utils.KVInterface");
 
-            kvStub.setUpServant(otherServantPorts, currPort);
+            kvStubCoordinator.setUpCoordinator(coordinatorPortNumber);
 
-        } catch (RemoteException | NotBoundException e) {
-            serverLogger.error("Error setting up other ports. " + e.getMessage());
+        } catch (NotBoundException |RemoteException e) {
+            serverLogger.error("Error setting up port number for coordinator.");
+            serverLogger.error(e.getMessage());
         }
     }
 

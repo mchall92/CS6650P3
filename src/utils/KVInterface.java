@@ -4,7 +4,6 @@ import server.ACKState;
 
 import java.rmi.Remote;
 import java.rmi.RemoteException;
-import java.rmi.server.ServerNotActiveException;
 import java.util.UUID;
 
 public interface KVInterface extends Remote {
@@ -14,12 +13,20 @@ public interface KVInterface extends Remote {
 
     String DELETE(UUID operationId, String key) throws RemoteException;
 
-    void setUpServant(int[] otherServantPort, int currPort) throws RemoteException;
+    void setUpCoordinator(int _coordinatorPort) throws RemoteException;
+
+    void setUpServant(int servantPort) throws RemoteException;
+
+    void setUpCurrentPort(int currentPort, int coordinatorPortNumber) throws RemoteException;
 
     void prepareKeyValue(UUID operationId, String action, String key, String value,
                          int originalServant) throws RemoteException;
     void goKeyValue(UUID operationId, int originalServant) throws RemoteException;
 
-    void acknowledgeOriginalServant(UUID operationId, int otherServant,
-                                    ACKState ackState) throws RemoteException;
+    void acknowledgeCoordinator(UUID operationId, int otherServant,
+                                ACKState ackState) throws RemoteException;
+
+    boolean startToPrepare(UUID operationId, String action, String key, String value) throws RemoteException;
+
+    boolean startToGo(UUID operationId) throws RemoteException;
 }
