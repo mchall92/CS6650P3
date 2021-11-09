@@ -7,10 +7,12 @@ import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
+import java.sql.Timestamp;
 
 public class KVServer3 {
 
     private static ServerLogger serverLogger = new ServerLogger("KVServer3");
+    private static Timestamp timestamp;
 
     public static void main(String[] args) {
         if (args.length != 2) {
@@ -34,7 +36,9 @@ public class KVServer3 {
             Registry registry = LocateRegistry.createRegistry(servantPortNumber);
             registry.rebind("utils.KVInterface", kvStub);
 
-            serverLogger.debug("KVServer3 is listening at port " + servantPortNumber + " ...");
+            timestamp = new Timestamp(System.currentTimeMillis());
+            serverLogger.debug("KVServer3 is listening at port " + servantPortNumber +
+                    " ...   " + timestamp);
 
             // set up current port for server
             setUpMyPort(servantPortNumber, coordinatorPortNumber);

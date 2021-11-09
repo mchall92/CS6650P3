@@ -41,6 +41,7 @@ public class KVClient {
 
             runHardCodedCommand();
 
+            instructions();
             runCustomCommands();
 
         } catch(Exception e){
@@ -151,7 +152,6 @@ public class KVClient {
         while (true) {
 
             Scanner sc= new Scanner(System.in);
-            clientLogger.debug("Enter an operation (PUT/GET/DELETE): ");
             String op = sc.nextLine();
 
             String[] operation = op.split("\\s+");
@@ -166,14 +166,16 @@ public class KVClient {
             try {
                 firstNumber = Integer.parseInt(operation[0]);
             } catch (NumberFormatException e) {
-                errorOp();
+                instructions();
                 continue;
             }
 
-            if (firstNumber < 0 || firstNumber > 4) {
-                errorOp();
+            if (firstNumber < 1 || firstNumber > 5) {
+                instructions();
                 continue;
             }
+
+            firstNumber -= 1;
 
             // check if operation from user is correct
             // if so, send request, if not, prompt user to input operation again
@@ -186,10 +188,10 @@ public class KVClient {
                 } else if (operation[1].equalsIgnoreCase("DELETE") && operation.length == 3) {
                     execute(kvstubList[firstNumber],operation);
                 } else {
-                    errorOp();
+                    instructions();
                 }
             } else {
-                errorOp();
+                instructions();
             }
         }
     }
@@ -197,9 +199,9 @@ public class KVClient {
     /**
      * Response to user input error.
      */
-    private static void errorOp() {
+    private static void instructions() {
         String msg = "Operation format incorrect, please follow this format:\n"
-                + "0-4 indicating which port + any three of the following:\n"
+                + "1-5 indicating which port + any three of the following:\n"
                 + "(1) PUT KEY VAULE\n"
                 + "(2) GET KEY\n"
                 + "(3) DELETE KEY\n\n"

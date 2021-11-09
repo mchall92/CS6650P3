@@ -19,12 +19,11 @@ public interface KVInterface extends Remote {
 
     void setUpCurrentPort(int currentPort, int coordinatorPortNumber) throws RemoteException;
 
-    void prepareKeyValue(UUID operationId, String action, String key, String value,
-                         int originalServant) throws RemoteException;
-    void goKeyValue(UUID operationId, int originalServant) throws RemoteException;
+    void prepareKeyValue(UUID operationId, String action, String key, String value) throws RemoteException;
 
-    void acknowledgeCoordinator(UUID operationId, int otherServant,
-                                ACKState ackState) throws RemoteException;
+    void goKeyValue(UUID operationId) throws RemoteException;
+
+    void acknowledgeCoordinator(UUID operationId, int otherServant, ACKState ackState) throws RemoteException;
 
     boolean startToPrepare(UUID operationId, String action, String key, String value) throws RemoteException;
 
