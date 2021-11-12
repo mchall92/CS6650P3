@@ -15,10 +15,8 @@ public class KVServant extends Thread implements KVInterface {
 
     private ServerLogger serverLogger = new ServerLogger("KVServant");
     private List<Integer> servantPorts;
-    private List<String> servantAddresses;
     private int currPort;
     private int coordinatorPort;
-    private String coordinatorAddress;
     private KeyValue keyValue = new KeyValue();
     private ReadWriteLock readWriteLock = new ReadWriteLock();
     private Timestamp timestamp;
@@ -36,10 +34,10 @@ public class KVServant extends Thread implements KVInterface {
         timestamp = new Timestamp(System.currentTimeMillis());
         serverLogger.debug("Servant port " + this.currPort +
                 " : Received request - PUT (key/Value) - " + "(" + key +
-                "/" + value + ")" + " from client " + getIP() + "   " + timestamp);
+                "/" + value + ")" + " from client " + getClient() + "   " + timestamp);
 
         try {
-            Registry registry =  LocateRegistry.getRegistry(coordinatorAddress, coordinatorPort);
+            Registry registry =  LocateRegistry.getRegistry(coordinatorPort);
             KVInterface kvStubCoordinator = (KVInterface) registry.lookup("utils.KVInterface");
 
             if (!kvStubCoordinator.startToPrepare(operationId, "PUT", key, value)) {
@@ -72,7 +70,7 @@ public class KVServant extends Thread implements KVInterface {
         String message = "";
         timestamp = new Timestamp(System.currentTimeMillis());
         serverLogger.debug("Servant port " + this.currPort +
-                " : Received request- GET key: " + key + " from client " + getIP() + "   " + timestamp);
+                " : Received request- GET key: " + key + " from client " + getClient() + "   " + timestamp);
         try {
             readWriteLock.lockRead();
             String value = "";
@@ -81,13 +79,13 @@ public class KVServant extends Thread implements KVInterface {
                 timestamp = new Timestamp(System.currentTimeMillis());
                 serverLogger.debug("Servant port " + this.currPort +
                         " : GET request SUCCESS. GET (Key / Value) -> (" +
-                        key + " : " + value + ") for Client: " + getIP() + "   " + timestamp);
+                        key + " : " + value + ") for Client: " + getClient() + "   " + timestamp);
                 message =  "GET request SUCCESS. GET (Key / Value) -> (" +
                         key + " : " + value + ")   " + timestamp;
             } else {
                 timestamp = new Timestamp(System.currentTimeMillis());
                 serverLogger.debug("Servant port " + this.currPort +
-                        " : GET request cannot find Key " + key + " for Client: " + getIP() + "   " + timestamp);
+                        " : GET request cannot find Key " + key + " for Client: " + getClient() + "   " + timestamp);
                 message =  "GET request cannot find Key " + key + "   " + timestamp;
             }
             readWriteLock.unlockRead();
@@ -102,10 +100,10 @@ public class KVServant extends Thread implements KVInterface {
     public String DELETE(UUID operationId, String key) throws RemoteException {
         timestamp = new Timestamp(System.currentTimeMillis());
         serverLogger.debug("Servant port " + this.currPort +
-                " : Received request - DELETE key - " + key + " from client " + getIP() + "   " + timestamp);
+                " : Received request - DELETE key - " + key + " from client " + getClient() + "   " + timestamp);
 
         try {
-            Registry registry =  LocateRegistry.getRegistry(coordinatorAddress, coordinatorPort);
+            Registry registry =  LocateRegistry.getRegistry(coordinatorPort);
             KVInterface kvStubCoordinator = (KVInterface) registry.lookup("utils.KVInterface");
 
             if (!kvStubCoordinator.startToPrepare(operationId, "DELETE", key, "")) {
@@ -187,8 +185,8 @@ public class KVServant extends Thread implements KVInterface {
 
         // prepare servants
         this.pendingPrepare.put(operationId, Collections.synchronizedMap(new HashMap<>()));
-        for (int i = 0; i < servantPorts.size(); i += 1) {
-            prepareServants(operationId, action, key, value, servantPorts.get(i), servantAddresses.get(i));
+        for (int servantPort : servantPorts) {
+            prepareServants(operationId, action, key, value, servantPort);
         }
 
         return waitForPrepare(operationId, action, key, value);
@@ -203,7 +201,7 @@ public class KVServant extends Thread implements KVInterface {
     }
 
     private void prepareServants(UUID operationId, String action,
-                                 String key, String value, int servantPort, String servantIP) {
+                                 String key, String value, int servantPort) {
         timestamp = new Timestamp(System.currentTimeMillis());
         serverLogger.debug("Coordinator port " + this.currPort +
                 " : Sending query to prepare at servant port - " + servantPort +
@@ -212,7 +210,7 @@ public class KVServant extends Thread implements KVInterface {
             Acknowledge acknowledge = new Acknowledge();
             acknowledge.isAcknowledged = false;
             this.pendingPrepare.get(operationId).put(servantPort, acknowledge);
-            Registry registry = LocateRegistry.getRegistry(servantIP, servantPort);
+            Registry registry = LocateRegistry.getRegistry(servantPort);
             KVInterface kvStub = (KVInterface) registry.lookup("utils.KVInterface");
             kvStub.prepareKeyValue(operationId, action, key, value);
         } catch (NotBoundException | RemoteException e) {
@@ -236,11 +234,11 @@ public class KVServant extends Thread implements KVInterface {
             acknowledgedPrepareCount = 0;
 
             Map<Integer, Acknowledge> acknowledgeMap = this.pendingPrepare.get(operationId);
-            for (int i = 0; i < servantPorts.size(); i += 1) {
-                if (acknowledgeMap.get(servantPorts.get(i)).isAcknowledged) {
+            for (int servantPort : this.servantPorts) {
+                if (acknowledgeMap.get(servantPort).isAcknowledged) {
                     acknowledgedPrepareCount += 1;
                 } else {
-                    prepareServants(operationId, action, key, value, servantPorts.get(i), servantAddresses.get(i));
+                    prepareServants(operationId, action, key, value, servantPort);
                 }
             }
 
@@ -268,11 +266,11 @@ public class KVServant extends Thread implements KVInterface {
             acknowledgedGoCount = 0;
 
             Map<Integer, Acknowledge> acknowledgeMap = this.pendingGo.get(operationId);
-            for (int i = 0; i < servantPorts.size(); i += 1) {
-                if (acknowledgeMap.get(servantPorts.get(i)).isAcknowledged) {
+            for (int servantPort : this.servantPorts) {
+                if (acknowledgeMap.get(servantPort).isAcknowledged) {
                     acknowledgedGoCount += 1;
                 } else {
-                    goServants(operationId, servantPorts.get(i), servantAddresses.get(i));
+                    goServants(operationId, servantPort);
                 }
             }
 
@@ -296,14 +294,14 @@ public class KVServant extends Thread implements KVInterface {
     public boolean startToGo(UUID operationId) {
         this.pendingGo.put(operationId, Collections.synchronizedMap(new HashMap<>()));
 
-        for (int i = 0; i < servantPorts.size(); i += 1) {
-            goServants(operationId, servantPorts.get(i), servantAddresses.get(i));
+        for (int servantPort : this.servantPorts) {
+            goServants(operationId, servantPort);
         }
 
         return waitForGo(operationId);
     }
 
-    private void goServants(UUID operationId, int servantPort, String servantIp) {
+    private void goServants(UUID operationId, int servantPort) {
         timestamp = new Timestamp(System.currentTimeMillis());
         serverLogger.debug("Coordinator port " + this.currPort +
                 " : Sending query to commit Go at servant port - " + servantPort +
@@ -312,7 +310,7 @@ public class KVServant extends Thread implements KVInterface {
             Acknowledge acknowledge = new Acknowledge();
             acknowledge.isAcknowledged = false;
             this.pendingGo.get(operationId).put(servantPort, acknowledge);
-            Registry registry = LocateRegistry.getRegistry(servantIp, servantPort);
+            Registry registry = LocateRegistry.getRegistry(servantPort);
             KVInterface kvStub = (KVInterface) registry.lookup("utils.KVInterface");
             kvStub.goKeyValue(operationId);
         } catch (NotBoundException | RemoteException e) {
@@ -326,7 +324,7 @@ public class KVServant extends Thread implements KVInterface {
         serverLogger.debug("Servant port " + this.currPort + " : Sending ACKState- " +
                 ackState + " to coordinator port " + this.coordinatorPort + "   " + timestamp);
         try {
-            Registry registry = LocateRegistry.getRegistry(coordinatorAddress, coordinatorPort);
+            Registry registry = LocateRegistry.getRegistry(coordinatorPort);
             KVInterface kvStub = (KVInterface) registry.lookup("utils.KVInterface");
             kvStub.acknowledgeCoordinator(operationId, this.currPort, ackState);
         } catch (NotBoundException | RemoteException e) {
@@ -352,7 +350,6 @@ public class KVServant extends Thread implements KVInterface {
     @Override
     public void setUpCoordinator(int _coordinatorPort) {
         this.servantPorts = new ArrayList<>();
-        this.servantAddresses = new ArrayList<>();
         this.coordinatorPort = _coordinatorPort;
         this.currPort = _coordinatorPort;
 
@@ -364,34 +361,31 @@ public class KVServant extends Thread implements KVInterface {
     @Override
     public void setUpServant(int servantPort) throws RemoteException {
         this.servantPorts.add(servantPort);
-        String IP = getIP();
-        this.servantAddresses.add(IP);
 
         timestamp = new Timestamp(System.currentTimeMillis());
         serverLogger.debug( "Port number " + this.coordinatorPort +
-                " : Add new server listening at IP : " + IP + " , port " + servantPort + "   " + timestamp);
+                " : Add new server listening at port : " + servantPort + "   " + timestamp);
     }
 
     @Override
-    public void setUpCurrentServer(int currentPort, int coordinatorPortNumber, String coordinatorIP) throws RemoteException {
+    public void setUpCurrentPort(int currentPort, int coordinatorPortNumber) throws RemoteException {
         this.currPort = currentPort;
         this.coordinatorPort = coordinatorPortNumber;
-        this.coordinatorAddress = coordinatorIP;
 
         timestamp = new Timestamp(System.currentTimeMillis());
         serverLogger.debug("Port number " + this.currPort + " : Set up current port at " +
                 this.currPort + " and coordinator at " + this.coordinatorPort + "   " + timestamp);
     }
 
-    private String getIP() {
-        String IP = "";
+    private String getClient() {
+        String client = "";
         try {
-            IP = RemoteServer.getClientHost();
+            client = RemoteServer.getClientHost();
         } catch (ServerNotActiveException e) {
-            serverLogger.error("Error getting IP info.");
+            serverLogger.error("Error getting client info.");
             serverLogger.error(e.getMessage());
         }
-        return IP;
+        return client;
     }
 
     private class Operation {

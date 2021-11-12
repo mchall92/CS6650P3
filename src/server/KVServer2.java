@@ -15,14 +15,15 @@ public class KVServer2 {
     private static Timestamp timestamp;
 
     public static void main(String[] args) {
-        if (args.length != 2) {
+        if (args.length != 3) {
             serverLogger.error("Please enter two port numbers: first one indicates " +
-                    "this port, second one indicates coordinator port");
+                    "this port, second one indicates coordinator port, third one indicate coordinator address.");
         }
 
         // parse port number
         int servantPortNumber = -1;
         int coordinatorPortNumber = -1;
+        String coordinatorAddress = args[2];
         try {
             servantPortNumber = Integer.parseInt(args[0]);
             coordinatorPortNumber = Integer.parseInt(args[1]);
@@ -41,10 +42,10 @@ public class KVServer2 {
                     " ...   " + timestamp);
 
             // set up current port for server
-            setUpMyPort(servantPortNumber, coordinatorPortNumber);
+            setUpMyPort(servantPortNumber, coordinatorPortNumber, coordinatorAddress);
 
             // connect to coordinator and register for this server
-            registerServer(coordinatorPortNumber, servantPortNumber);
+            registerServer(coordinatorPortNumber, servantPortNumber, coordinatorAddress);
 
 
         } catch (RemoteException e) {
@@ -53,10 +54,10 @@ public class KVServer2 {
         }
     }
 
-    private static void registerServer(int coordinatorPortNumber, int servantPortNumber) {
+    private static void registerServer(int coordinatorPortNumber, int servantPortNumber, String coordinatorAddress) {
         try {
 
-            Registry registry =  LocateRegistry.getRegistry(coordinatorPortNumber);
+            Registry registry =  LocateRegistry.getRegistry(coordinatorAddress, coordinatorPortNumber);
             KVInterface kvStubCoordinator = (KVInterface) registry.lookup("utils.KVInterface");
 
             kvStubCoordinator.setUpServant(servantPortNumber);
@@ -67,12 +68,12 @@ public class KVServer2 {
         }
     }
 
-    private static void setUpMyPort(int servantPortNumber, int coordinatorPortNumber) {
+    private static void setUpMyPort(int servantPortNumber, int coordinatorPortNumber, String coordinatorAddress) {
         try {
             Registry registry =  LocateRegistry.getRegistry(servantPortNumber);
             KVInterface kvStub = (KVInterface) registry.lookup("utils.KVInterface");
 
-            kvStub.setUpCurrentPort(servantPortNumber, coordinatorPortNumber);
+            kvStub.setUpCurrentServer(servantPortNumber, coordinatorPortNumber, coordinatorAddress);
 
         } catch (NotBoundException |RemoteException e) {
             serverLogger.error("Error setting up current port.");

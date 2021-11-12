@@ -17,7 +17,7 @@ public interface KVInterface extends Remote {
 
     void setUpServant(int servantPort) throws RemoteException;
 
-    void setUpCurrentPort(int currentPort, int coordinatorPortNumber) throws RemoteException;
+    void setUpCurrentServer(int currentPort, int coordinatorPortNumber, String coordinatorIP) throws RemoteException;
 
     void prepareKeyValue(UUID operationId, String action, String key, String value) throws RemoteException;
 
